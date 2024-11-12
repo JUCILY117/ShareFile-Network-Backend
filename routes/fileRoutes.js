@@ -319,7 +319,6 @@ router.post('/upload-team-image/:teamId', authMiddleware, upload.single('teamIma
     const team = await Team.findById(teamId);
     if (!team) return res.status(404).json({ msg: 'Team not found' });
 
-    // If team already has an image, delete the old one
     if (team.teamImage) {
       const oldFileName = path.basename(team.teamImage);
       const oldFilePath = path.join(__dirname, '../uploads', oldFileName);
@@ -332,7 +331,6 @@ router.post('/upload-team-image/:teamId', authMiddleware, upload.single('teamIma
       });
     }
 
-    // Update team image URL
     team.teamImage = fileUrl;
     await team.save();
 

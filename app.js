@@ -13,17 +13,15 @@ const authMiddleware = require('./middleware/authMiddleware');
 const axios = require('axios');
 const cron = require('node-cron');
 const http = require('http');
-const socketIo = require('socket.io'); // Import socket.io
+const socketIo = require('socket.io');
 
 const app = express();
 
-// Create HTTP server for Socket.io
 const server = http.createServer(app);
 
-// Initialize Socket.io
 const io = socketIo(server, {
   cors: {
-    origin: '*', // Adjust origin for local and production environments
+    origin: '*',
     methods: ['GET', 'POST'],
   },
 });
@@ -58,13 +56,13 @@ app.get('/', (req, res) => {
   res.end('Server is Up and Running!');
 });
 
-// Static files for file management
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/trash', express.static(path.join(__dirname, 'trash')));
 
 // All routes
 app.use('/api/auth', authRoutes);
-app.use('/api/admin', authRoutes);  // Verify if admin routes need middleware
+app.use('/api/admin', authRoutes);
 app.use('/api/files', fileRoutes, authMiddleware);
 app.use('/api/folders', folderRoutes, authMiddleware);
 app.use('/api/teams', teamRoutes, authMiddleware);
@@ -80,21 +78,17 @@ app.get('/api/auth/verified', (req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'verified.html'));
 });
 
-// Socket.io communication (Real-time notifications)
 io.on('connection', (socket) => {
   console.log('A user connected');
 
-  // Handle receiving new chat messages and broadcasting them
   socket.on('newChatMessage', (message) => {
-    io.emit('chatMessage', message); // Broadcast message to all clients
+    io.emit('chatMessage', message);
   });
 
-  // Handle sending notifications
   socket.on('sendNotification', (notification) => {
-    io.emit('notification', notification); // Broadcast notification to all clients
+    io.emit('notification', notification);
   });
 
-  // Handle disconnection
   socket.on('disconnect', () => {
     console.log('A user disconnected');
   });

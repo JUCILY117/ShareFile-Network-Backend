@@ -18,10 +18,8 @@ router.post('/', authMiddleware, async (req, res) => {
     });
     await chatMessage.save();
 
-    // Populate sender details for the real-time message
     const populatedMessage = await chatMessage.populate('sender', 'firstName lastName profileImage');
 
-    // Emit the new message to all clients
     io.emit('chatMessage', populatedMessage);
 
     res.status(201).json(chatMessage);

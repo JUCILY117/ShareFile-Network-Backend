@@ -284,7 +284,7 @@ const getUser = async (req, res) => {
 const getUserById = async (req, res) => {
   const userId = req.params.userId;
   try {
-    const user = await User.findById(userId).select('-password'); // Exclude sensitive fields
+    const user = await User.findById(userId).select('-password');
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }

@@ -40,24 +40,7 @@ const TeamSchema = new mongoose.Schema({
       type: String,
       default: 'User',
     }
-  ],
-  pendingInvites: [
-    {
-      email: { 
-        type: String, 
-        unique: true, 
-        required: true, 
-        trim: true 
-      },
-      invitedAt: { 
-        type: Date, 
-        default: Date.now 
-      },
-    }
   ]
 }, { timestamps: true });
-
-// Index for pendingInvites.email to prevent duplicate emails
-TeamSchema.index({ 'pendingInvites.email': 1 }, { unique: true });
 
 module.exports = mongoose.model('Team', TeamSchema);
