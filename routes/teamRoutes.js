@@ -42,6 +42,7 @@ router.post('/', authMiddleware, async (req, res) => {
             name,
             members: [{user: userId, role: 'User'}],
             creator: userId,
+            pendingInvites: [],
         });
 
         const savedTeam = await newTeam.save();
@@ -79,13 +80,51 @@ router.get('/:id', authMiddleware, async (req, res) => {
     }
 });
 
-// invite a person to team by mail and send related notification
+// Update the team name
+router.patch('/:id/name', authMiddleware, async (req, res) => {
+    const teamId = req.params.id;
+    const { name } = req.body;
+
+    if (!name || !name.trim()) {
+        return res.status(400).json({ msg: 'Team name is required and cannot be empty.' });
+    }
+
+    try {
+        const team = await Team.findById(teamId);
+        if (!team) {
+            return res.status(404).json({ msg: 'Team not found' });
+        }
+
+        team.name = name;
+        await team.save();
+
+        res.status(200).json({
+            msg: 'Team name updated successfully',
+            team: {
+                _id: team._id,
+                name: team.name,
+                creator: team.creator,
+                members: team.members,
+            },
+        });
+    } catch (error) {
+        console.error('Error updating team name:', error);
+        res.status(500).json({ error: 'Error updating team name' });
+    }
+});
+
+
+// invite a person to team by mail and send notification
 router.post('/:id/members', authMiddleware, async (req, res) => {
     const { email } = req.body;
     const teamId = req.params.id;
 
     if (!email || !email.trim()) {
         return res.status(400).json({ msg: 'Email is required and cannot be empty.' });
+    }
+    const validEmailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
+    if (!validEmailRegex.test(email)) {
+        return res.status(400).json({ msg: 'Invalid email address.' });
     }
 
     try {
@@ -103,7 +142,10 @@ router.post('/:id/members', authMiddleware, async (req, res) => {
 
         await sendInvitationEmail(email, team.name, inviterName);
 
-        team.pendingInvites.push({ email });
+        if (email.trim()) {
+            team.pendingInvites.push({ email: email.trim() });
+        }
+
         await team.save();
 
         const recipientUser = await User.findOne({ email });
@@ -128,12 +170,45 @@ router.post('/:id/members', authMiddleware, async (req, res) => {
     }
 });
 
+
+
+// Remove a member from the team
+router.delete('/:id/members/:userId', authMiddleware, async (req, res) => {
+    const { id: teamId, userId } = req.params;
+
+    try {
+        const team = await Team.findById(teamId);
+        if (!team) {
+            return res.status(404).json({ msg: 'Team not found' });
+        }
+
+        const memberIndex = team.members.findIndex((member) => member.user.toString() === userId);
+        if (memberIndex === -1) {
+            return res.status(404).json({ msg: 'User not found in the team' });
+        }
+
+        team.members.splice(memberIndex, 1);
+
+        await team.save();
+
+        res.status(200).json({ msg: 'Member removed successfully' });
+    } catch (error) {
+        console.error('Error removing member:', error);
+        res.status(500).json({ error: 'Error removing member from the team' });
+    }
+});
+
+
 // get all team members by id
 router.get('/:id/members', authMiddleware, async (req, res) => {
     const teamId = req.params.id;
 
     try {
-        const team = await Team.findById(teamId).populate('members.user');
+        const team = await Team.findById(teamId)
+            .populate({
+                path: 'members.user',
+                select: 'firstName lastName profileImage email'
+            });
 
         if (!team) {
             return res.status(404).json({ msg: 'Team not found' });
@@ -141,7 +216,9 @@ router.get('/:id/members', authMiddleware, async (req, res) => {
 
         const membersWithRoles = team.members.map(member => ({
             _id: member.user ? member.user._id : null,
-            name: member.user ? member.user.firstName : 'Unknown Member',
+            name: member.user ? `${member.user.firstName} ${member.user.lastName}` : 'Unknown Member',
+            profileImage: member.user.profileImage,
+            email: member.user.email,
             role: member.role || 'No Role',
         }));
 
@@ -152,9 +229,39 @@ router.get('/:id/members', authMiddleware, async (req, res) => {
     }
 });
 
-// Add a role to a team
+// Create a new role
 router.patch('/:id/roles', authMiddleware, async (req, res) => {
     const { role } = req.body;
+    const teamId = req.params.id;
+
+    if (!role) {
+        return res.status(400).json({ msg: 'Role is required' });
+    }
+
+    try {
+        const team = await Team.findById(teamId);
+        if (!team) {
+            return res.status(404).json({ msg: 'Team not found' });
+        }
+        const formattedRole = role
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
+
+        if (!team.roles.includes(formattedRole)) {
+            team.roles.push(formattedRole);
+            await team.save();
+        }
+
+        res.status(200).json({ msg: 'Role added successfully', team });
+    } catch (error) {
+        console.error('Error adding role:', error);
+        res.status(500).json({ error: 'Error adding role' });
+    }
+});
+
+// Get all roles of a team
+router.get('/:id/roles', authMiddleware, async (req, res) => {
     const teamId = req.params.id;
 
     try {
@@ -163,17 +270,52 @@ router.patch('/:id/roles', authMiddleware, async (req, res) => {
             return res.status(404).json({ msg: 'Team not found' });
         }
 
-        if (!team.roles.includes(role)) {
-            team.roles.push(role);
-            await team.save();
-        }
-
-        res.status(200).json(team);
+        res.status(200).json({
+            roles: team.roles || []
+        });
     } catch (error) {
-        console.error('Error adding role:', error);
-        res.status(500).json({ error: 'Error adding role' });
+        console.error('Error retrieving roles:', error);
+        res.status(500).json({ error: 'Error retrieving roles' });
     }
 });
+
+
+// Assign a role to a user in a team
+router.patch('/:teamId/members/:userId/role', authMiddleware, async (req, res) => {
+    const { teamId, userId } = req.params;
+    const { role } = req.body;
+
+    try {
+        // Find the team
+        const team = await Team.findById(teamId);
+        if (!team) {
+            return res.status(404).json({ msg: 'Team not found' });
+        }
+
+        if (!team.roles.includes(role)) {
+            return res.status(400).json({ msg: `Invalid role. Available roles are: ${team.roles.join(', ')}` });
+        }
+
+        const member = team.members.find(m => m.user.toString() === userId);
+        if (!member) {
+            return res.status(404).json({ msg: 'User not found in the team' });
+        }
+
+        member.role = role;
+
+        await team.save();
+
+        res.status(200).json({
+            msg: 'Role updated successfully',
+            updatedMember: member,
+        });
+    } catch (error) {
+        console.error('Error updating role:', error);
+        res.status(500).json({ error: 'Error updating role' });
+    }
+});
+
+
 
 // Delete a team
 router.delete('/:id', authMiddleware, async (req, res) => {

@@ -1,58 +1,50 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const fs = require('fs');
-const path = require('path');
+const cloudinary = require('../config/cloudinary');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const File = require('../models/file');
 const User = require('../models/User');
 const Team = require("../models/Team");
+const TeamFile = require("../models/TeamFile");
 const authMiddleware = require('../middleware/authMiddleware');
-
 const apiBaseUrl = process.env.BASE_API;
+const path = require('path');
 
-const directories = ['uploads', 'trash', 'folders'];
-
-function folderMaker() {
-  directories.forEach(dir => {
-    const dirPath = path.join(__dirname, '../', dir);
-    if (!fs.existsSync(dirPath)) {
-      fs.mkdirSync(dirPath, { recursive: true });
-      console.log(`Directory created: ${dirPath}`);
-    }
-  });
-}
-
-folderMaker();
-
-// multer setup
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/');
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
+// cloudinary multer storage setup
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: (req, file) => ({
+    folder: 'uploads',
+    public_id: `${Date.now()}-${file.originalname}`,
+  }),
 });
 
-const upload = multer({ 
+const upload = multer({
   storage: storage,
-  limits: { fileSize: 500 * 1024 * 1024 }
- });
+  limits: { fileSize: 500 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    cb(null, true);
+  },
+});
 
-// Handle file upload
 router.post('/upload', authMiddleware, upload.array('files'), async (req, res) => {
   try {
     if (!req.files) {
       return res.status(400).json({ error: 'No files were uploaded.' });
     }
 
-    const files = req.files.map(file => ({
-      filename: file.filename,
-      filepath: file.path,
-      mimetype: file.mimetype,
-      size: file.size,
-      owner: req.user._id
-    }));
+    const files = req.files.map(file => {
+      console.log(file);
+      return {
+        filename: file.filename,
+        filepath: file.path,
+        mimetype: file.mimetype,
+        size: file.size,
+        owner: req.user._id,
+        cloudinaryUrl: file.url || 'No URL found'
+      };
+    });
 
     const savedFiles = await File.insertMany(files);
     res.status(200).json(savedFiles);
@@ -66,7 +58,7 @@ router.post('/upload', authMiddleware, upload.array('files'), async (req, res) =
 });
 
 
-// retrieve files
+// get files
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -80,7 +72,7 @@ router.get('/', authMiddleware, async (req, res) => {
 
     const filesWithUrls = files.map(file => ({
       ...file.toObject(),
-      fileUrl: `${apiBaseUrl}/uploads/${file.filename}`
+      fileUrl: file.cloudinaryUrl
     }));
 
     res.status(200).json({
@@ -95,36 +87,20 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-
-// delete or trash a file
+// Delete or trash a file
 router.delete('/:id', authMiddleware, async (req, res) => {
   const fileId = req.params.id;
 
   try {
     const file = await File.findById(fileId);
+    if (!file) return res.status(404).json({ msg: 'File not found' });
 
-    if (!file) {
-      return res.status(404).json({ msg: 'File not found' });
-    }
-
-    if (file.trashed) {
-      return res.status(400).json({ msg: 'File is already in trash' });
-    }
+    if (file.trashed) return res.status(400).json({ msg: 'File is already in trash' });
 
     file.trashed = true;
     await file.save();
 
-    const oldFilePath = path.join(__dirname, '../uploads', file.filename);
-    const newFilePath = path.join(__dirname, '../trash', file.filename);
-    
-    fs.rename(oldFilePath, newFilePath, (err) => {
-      if (err) {
-        console.error('Failed to move file to trash:', err);
-        return res.status(500).json({ error: 'Failed to move file to trash' });
-      }
-      
-      res.status(200).json({ msg: 'File moved to trash successfully' });
-    });
+    res.status(200).json({ msg: 'File moved to trash successfully' });
   } catch (error) {
     console.error('Error moving file to trash:', error);
     res.status(500).json({ error: 'Error moving file to trash' });
@@ -145,7 +121,7 @@ router.get('/trash', authMiddleware, async (req, res) => {
 
     const filesWithUrls = trashedFiles.map(file => ({
       ...file.toObject(),
-      fileUrl: `${apiBaseUrl}/trash/${file.filename}`
+      fileUrl: file.cloudinaryUrl
     }));
 
     res.status(200).json({
@@ -160,33 +136,19 @@ router.get('/trash', authMiddleware, async (req, res) => {
   }
 });
 
-
 // Permanently delete a trashed file
 router.delete('/trash/:id', authMiddleware, async (req, res) => {
   const fileId = req.params.id;
 
   try {
     const file = await File.findById(fileId);
+    if (!file) return res.status(404).json({ msg: 'File not found' });
 
-    if (!file) {
-      return res.status(404).json({ msg: 'File not found' });
-    }
+    if (!file.trashed) return res.status(400).json({ msg: 'File is not in trash' });
+    await cloudinary.uploader.destroy(file.filename);
+    await File.findByIdAndDelete(fileId);
 
-    if (!file.trashed) {
-      return res.status(400).json({ msg: 'File is not in trash' });
-    }
-
-    const filePath = path.join(__dirname, '../trash', file.filename);
-    
-    fs.unlink(filePath, async (err) => {
-      if (err) {
-        console.error('Failed to delete file from trash:', err);
-        return res.status(500).json({ error: 'Failed to delete file from trash' });
-      }
-
-      await File.findByIdAndDelete(fileId);
-      res.status(200).json({ msg: 'File permanently deleted successfully' });
-    });
+    res.status(200).json({ msg: 'File permanently deleted successfully' });
   } catch (error) {
     console.error('Error permanently deleting file:', error);
     res.status(500).json({ error: 'Error permanently deleting file' });
@@ -194,46 +156,35 @@ router.delete('/trash/:id', authMiddleware, async (req, res) => {
 });
 
 // Restore a trashed file
-router.post('/restore/:id',authMiddleware, async (req, res) => {
+router.post('/restore/:id', authMiddleware, async (req, res) => {
   const fileId = req.params.id;
 
   try {
     const file = await File.findById(fileId);
+    if (!file) return res.status(404).json({ msg: 'File not found' });
 
-    if (!file) {
-      return res.status(404).json({ msg: 'File not found' });
-    }
+    if (!file.trashed) return res.status(400).json({ msg: 'File is not in trash' });
+    file.trashed = false;
+    await file.save();
 
-    if (!file.trashed) {
-      return res.status(400).json({ msg: 'File is not in trash' });
-    }
-
-    // Move file back to the uploads folder
-    const oldFilePath = path.join(__dirname, '../trash', file.filename);
-    const newFilePath = path.join(__dirname, '../uploads', file.filename);
-    
-    fs.rename(oldFilePath, newFilePath, async (err) => {
-      if (err) {
-        console.error('Failed to restore file from trash:', err);
-        return res.status(500).json({ error: 'Failed to restore file from trash' });
-      }
-
-      file.trashed = false;
-      await file.save();
-      res.status(200).json({ msg: 'File restored successfully' });
-    });
+    res.status(200).json({ msg: 'File restored successfully' });
   } catch (error) {
     console.error('Error restoring file:', error);
     res.status(500).json({ error: 'Error restoring file' });
   }
 });
 
+
 // Empty the trash
 router.delete('/trash', authMiddleware, async (req, res) => {
   try {
-    const deletedFiles = await File.deleteMany({ trashed: true });
+    const deletedFiles = await File.find({ trashed: true });
+    for (const file of deletedFiles) {
+      await cloudinary.uploader.destroy(file.filename);
+      await file.remove();
+    }
 
-    res.status(200).json({ message: 'Bin emptied successfully!', deletedFiles });
+    res.status(200).json({ message: 'Trash emptied successfully' });
   } catch (error) {
     console.error('Failed to empty bin:', error);
     res.status(500).json({ error: 'Failed to empty bin' });
@@ -245,111 +196,212 @@ router.post('/upload-profile-image', authMiddleware, upload.single('profileImage
   try {
     const file = req.file;
     if (!file) return res.status(400).json({ msg: 'No file uploaded' });
+    const fileUrl = file.path; 
 
-    const fileUrl = `${apiBaseUrl}/uploads/${file.filename}`;
-    
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ msg: 'User not found' });
 
     if (user.profileImage) {
-      const oldFileName = path.basename(user.profileImage);
-      const oldFilePath = path.join(__dirname, '../uploads', oldFileName);
-      
-      fs.unlink(oldFilePath, (err) => {
-        if (err) {
-          console.error('Failed to delete old profile image:', err);
-          return res.status(500).json({ error: 'Failed to delete old profile image' });
-        }
-      });
+      const oldPublicId = user.profileImage
+        .split('/')
+        .slice(-2)
+        .join('/')
+        .split('.')[0];
+      await cloudinary.uploader.destroy(oldPublicId);
     }
 
     user.profileImage = fileUrl;
     await user.save();
 
-    res.json({ imageUrl: user.profileImage });
+    res.status(200).json({ imageUrl: user.profileImage });
   } catch (error) {
     console.error('Error uploading profile image:', error);
     res.status(500).json({ error: 'Error uploading profile image' });
   }
 });
 
-// Handle profile image deletion
-router.delete('/delete-file/:filename', authMiddleware, async (req, res) => {
+
+// team image upload
+router.post('/upload-team-image/:teamUuid', authMiddleware, upload.single('teamImage'), async (req, res) => {
+  const { teamUuid } = req.params;
+
   try {
-    const { filename } = req.params;
-    if (!filename) return res.status(400).json({ msg: 'Filename not provided' });
-
-    const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ msg: 'User not found' });
-
-    if (user.profileImage === " " || !user.profileImage || path.basename(user.profileImage) !== filename) {
-      return res.status(404).json({ msg: 'Profile image not found' });
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file was uploaded.' });
+    }
+    const team = await Team.findOne({ uuid: teamUuid });
+    if (!team) {
+      return res.status(404).json({ error: 'Team not found.' });
     }
 
-    const filePath = path.join(__dirname, '../uploads', filename);
+    if (team.teamImage) {
+      const oldPublicId = team.teamImage.split('/').slice(-1)[0].split('.')[0];
+      await cloudinary.uploader.destroy(oldPublicId);
+    }
 
-    fs.unlink(filePath, async (err) => {
-      if (err) {
-        console.error('Failed to delete profile image:', err);
-        return res.status(500).json({ error: 'Failed to delete profile image' });
-      }
-
-      user.profileImage = '';
-      await user.save();
-
-      res.json({ msg: 'Profile image deleted successfully' });
+    const timestamp = Date.now();
+    const customFilename = `${timestamp}-${req.file.originalname}`;
+    const cloudinaryResult = await cloudinary.uploader.upload(req.file.path, {
+      public_id: customFilename.replace(path.extname(req.file.originalname), ''),
+      resource_type: 'image',
     });
+
+    team.teamImage = cloudinaryResult.secure_url;
+    await team.save();
+
+    res.status(200).json({ message: 'Team image updated successfully.', teamImage: team.teamImage });
   } catch (error) {
-    console.error('Error deleting profile image:', error);
-    res.status(500).json({ error: 'Error deleting profile image' });
+    console.error('Error uploading team image:', error);
+    res.status(500).json({ error: 'Failed to upload team image' });
   }
 });
 
 
-// Handle team image upload
-router.post('/upload-team-image/:teamId', authMiddleware, upload.single('teamImage'), async (req, res) => {
+
+
+// Handle team image deletion
+router.delete('/delete-team-image', authMiddleware, async (req, res) => {
   try {
-    const file = req.file;
-    const { teamId } = req.params;
+    const { teamId } = req.body;
+    if (!teamId) return res.status(400).json({ msg: 'Team ID not provided' });
 
-    if (!file) return res.status(400).json({ msg: 'No file uploaded' });
-
-    const fileUrl = `${apiBaseUrl}/uploads/${file.filename}`;
-    
     const team = await Team.findById(teamId);
     if (!team) return res.status(404).json({ msg: 'Team not found' });
 
-    if (team.teamImage) {
-      const oldFileName = path.basename(team.teamImage);
-      const oldFilePath = path.join(__dirname, '../uploads', oldFileName);
+    if (!team.teamImage) return res.status(404).json({ msg: 'No team image to delete' });
 
-      fs.unlink(oldFilePath, (err) => {
-        if (err) {
-          console.error('Failed to delete old team image:', err);
-          return res.status(500).json({ error: 'Failed to delete old team image' });
-        }
-      });
-    }
+    const fileName = path.basename(team.teamImage);
+    await cloudinary.uploader.destroy(fileName);
 
-    team.teamImage = fileUrl;
+    team.teamImage = '';
     await team.save();
 
-    res.json({ imageUrl: team.teamImage });
+    res.json({ msg: 'Team image deleted successfully' });
   } catch (error) {
-    console.error('Error uploading team image:', error);
-    res.status(500).json({ error: 'Error uploading team image' });
+    console.error('Error deleting team image:', error);
+    res.status(500).json({ error: 'Error deleting team image' });
   }
 });
 
-// error handling for file size limit
-router.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError) {
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(413).json({ error: 'File size exceeds the limit of 500 MB.' });
+
+
+// Team file upload
+router.post('/upload-to-team/:teamUuid', authMiddleware, upload.array('files'), async (req, res) => {
+  const { teamUuid } = req.params;
+
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No files were uploaded.' });
     }
+
+    const team = await Team.findOne({ uuid: teamUuid });
+    if (!team) {
+      return res.status(404).json({ error: 'Team not found.' });
+    }
+
+    const files = await Promise.all(req.files.map(async (file) => {
+      const originalFilename = path.parse(file.originalname).name;
+      const fileExtension = path.extname(file.originalname);
+
+      const timestamp = Date.now();
+      const publicId = `${timestamp}-${originalFilename}`;
+
+      const cloudinaryResult = await cloudinary.uploader.upload(file.path, {
+        public_id: publicId,
+        resource_type: 'auto',
+      });
+
+      return {
+        teamUuid,
+        uploadedBy: req.user._id,
+        filename: file.originalname,
+        fileUrl: cloudinaryResult.secure_url,
+        fileSize: file.size / (1024 * 1024),
+        description: req.body.description || '',
+        fileType: file.mimetype,
+      };
+    }));
+
+    const savedFiles = await TeamFile.insertMany(files);
+
+    const filesWithDetails = await Promise.all(savedFiles.map(async (file) => {
+      const user = await User.findById(file.uploadedBy);
+      return {
+        ...file.toObject(),
+        uploadedByName: `${user.firstName} ${user.lastName}`,
+        uploadedByPfp: user.profileImage,
+      };
+    }));
+
+    res.status(200).json(filesWithDetails);
+  } catch (error) {
+    console.error('File upload failed:', error);
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ error: 'File size exceeds the limit.' });
+    }
+    res.status(500).json({ error: 'File upload failed' });
   }
-  res.status(500).json({ error: 'Something went wrong.' });
 });
+
+
+// Retrieve files for a specific team
+router.get('/team/:teamUuid/files', authMiddleware, async (req, res) => {
+  const { teamUuid } = req.params;
+  try {
+    const team = await Team.findOne({ uuid: teamUuid });
+
+    if (!team) {
+      return res.status(404).json({ error: 'Team not found.' });
+    }
+
+    const files = await TeamFile.find({ teamUuid: team.uuid })
+      .populate('uploadedBy', 'firstName lastName profileImage')
+      .exec();
+
+    const filesWithDetails = files.map(file => ({
+      ...file.toObject(),
+      fileSize: (file.fileSize).toFixed(2) + ' MB',
+      uploadedByName: `${file.uploadedBy.firstName} ${file.uploadedBy.lastName}`,
+      uploadedByPfp: file.uploadedBy.profileImage,
+      fileType: file.fileType,
+    }));
+
+    res.status(200).json({ files: filesWithDetails });
+  } catch (error) {
+    console.error('Failed to retrieve files:', error);
+    res.status(500).json({ error: 'Failed to retrieve files' });
+  }
+});
+
+
+// Delete a file by ID
+router.delete('/team/:fileId', authMiddleware, async (req, res) => {
+  const { fileId } = req.params;
+
+  try {
+    const file = await TeamFile.findById(fileId);
+
+    if (!file) {
+      return res.status(404).json({ error: 'File not found.' });
+    }
+    if (file.uploadedBy.toString() !== req.user._id.toString() && !req.user.isAdmin) {
+      return res.status(403).json({ error: 'You do not have permission to delete this file.' });
+    }
+    const cloudinaryPublicId = file.fileUrl
+      .split('/')
+      .slice(-1)[0]
+      .split('.')[0];
+
+    await cloudinary.uploader.destroy(cloudinaryPublicId);
+    await TeamFile.findByIdAndDelete(fileId);
+
+    res.status(200).json({ message: 'File deleted successfully.' });
+  } catch (error) {
+    console.error('Failed to delete file:', error);
+    res.status(500).json({ error: 'Failed to delete file' });
+  }
+});
+
 
 
 module.exports = router;

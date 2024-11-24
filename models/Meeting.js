@@ -1,14 +1,19 @@
 const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
 
-const TeamSchema = new mongoose.Schema(
+const MeetingSchema = new mongoose.Schema(
   {
-    uuid: { 
+    meetingId: { 
       type: String, 
       default: uuidv4, 
       unique: true, 
     },
-    name: { 
+    teamId: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: 'Team', 
+      required: true,
+    },
+    title: { 
       type: String, 
       required: true, 
     },
@@ -16,39 +21,20 @@ const TeamSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId, 
       ref: 'User', 
       required: true, 
-      index: true, 
     },
-    teamImage: { 
+    status: { 
       type: String, 
-      default: '', 
+      enum: ['active', 'ended'], 
+      default: 'active', 
     },
-    members: [
+    participants: [
       {
-        user: {
+        userId: { 
           type: mongoose.Schema.Types.ObjectId, 
           ref: 'User', 
           required: true, 
         },
-        role: { 
-          type: String, 
-          required: true, 
-          default: 'User', 
-        },
-      },
-    ],
-    roles: [
-      {
-        type: String, 
-        default: 'User', 
-      },
-    ],
-    pendingInvites: [
-      {
-        email: { 
-          type: String, 
-          required: true, 
-        },
-        invitedAt: { 
+        joinedAt: { 
           type: Date, 
           default: Date.now, 
         },
@@ -58,4 +44,4 @@ const TeamSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model('Team', TeamSchema);
+module.exports = mongoose.model('Meeting', MeetingSchema);

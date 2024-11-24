@@ -94,17 +94,20 @@ router.post('/accept-invite', authMiddleware, async (req, res) => {
       user: userId,
       role: 'User',
     });
+    const userEmail = req.user.email;
+    team.pendingInvites = team.pendingInvites.filter(invite => invite.email !== userEmail);
 
     await team.save();
 
     await Notification.deleteMany({ recipient: userId, teamId, type: 'team_invite' });
 
-    res.status(200).json({ msg: 'Invite accepted and user added to the team' });
+    res.status(200).json({ msg: 'Invite accepted, user added to the team, and invite removed' });
   } catch (error) {
     console.error('Error accepting invite:', error);
     res.status(500).json({ error: 'Failed to accept invite' });
   }
 });
+
 
 
 // Reject a team invite
@@ -122,13 +125,23 @@ router.post('/reject-invite', authMiddleware, async (req, res) => {
       return res.status(400).json({ msg: 'Not a team invite' });
     }
 
+    const team = await Team.findById(notification.teamId);
+    if (!team) {
+      return res.status(404).json({ msg: 'Team not found' });
+    }
+
+    const userEmail = req.user.email;
+    team.pendingInvites = team.pendingInvites.filter(invite => invite.email !== userEmail);
+    await team.save();
+
     await notification.deleteOne();
 
-    res.status(200).json({ msg: 'Invite rejected and notification deleted' });
+    res.status(200).json({ msg: 'Invite rejected, notification deleted, and invite removed' });
   } catch (error) {
     console.error('Error rejecting invite:', error);
     res.status(500).json({ error: 'Failed to reject invite' });
   }
 });
+
 
 module.exports = router;
