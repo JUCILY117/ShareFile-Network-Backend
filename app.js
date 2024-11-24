@@ -34,7 +34,7 @@ app.use(express.json({ extended: false }));
 const allowedOrigins = [
   'http://localhost:5173',
   'https://sharefilenetwork.netlify.app',
-  'https://teamsfilenetwork.netlify.app',
+  'https://teamsharenetwork.netlify.app',
   'https://sharefilenetwork.onrender.com',
   'http://localhost:5174'
 ];
