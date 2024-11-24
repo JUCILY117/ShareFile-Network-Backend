@@ -6,12 +6,12 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// cloudinary.api.ping()
-//   .then(response => {
-//     console.log('Cloudinary connected successfully:', response);
-//   })
-//   .catch(error => {
-//     console.error('Error connecting to Cloudinary:', error);
-//   });
+cloudinary.api.ping()
+  .then(response => {
+    console.log('Cloudinary connected successfully!');
+  })
+  .catch(error => {
+    console.error('Error connecting to Cloudinary:', error);
+  });
 
 module.exports = cloudinary;
