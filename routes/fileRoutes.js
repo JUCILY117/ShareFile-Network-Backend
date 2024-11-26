@@ -17,6 +17,7 @@ const storage = new CloudinaryStorage({
   params: (req, file) => ({
     folder: 'uploads',
     public_id: `${Date.now()}-${file.originalname}`,
+    resource_type: 'auto',
   }),
 });
 
