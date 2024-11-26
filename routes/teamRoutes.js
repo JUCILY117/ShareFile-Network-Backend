@@ -17,16 +17,153 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-const sendInvitationEmail = (to, teamName, inviterName) => {
+const sendInvitationEmail = (to, teamName, inviterName, recipientName) => {
     const mailOptions = {
         from: process.env.EMAIL_USER,
         to,
         subject: `You've been invited to join the team: ${teamName}`,
-        text: `Hello,\n\n${inviterName} has invited you to join the team "${teamName}".\n\nBest,\nTeam Management`,
+        html: `
+            <html>
+                <head>
+                    <style>
+                        @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+                        body {
+                            font-family: 'Poppins', sans-serif;
+                            background-color: #000;
+                            color: #fff;
+                            margin: 0;
+                            padding: 0;
+                        }
+                        .container {
+                            background-color: #1F1F1F;
+                            border-radius: 8px;
+                            padding: 40px;
+                            max-width: 700px;
+                            margin: 30px auto;
+                            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+                        }
+                        .header {
+                            text-align: center;
+                            margin-bottom: 30px;
+                        }
+                        .header img {
+                            width: 150px;
+                            margin-bottom: 50px;
+                        }
+                        .header h1 {
+                            font-size: 28px;
+                            color: #fff;
+                            margin: 0;
+                        }
+                        .content {
+                            font-size: 16px;
+                            line-height: 1.6;
+                            color: #b9b9bd;
+                        }
+                        .content strong {
+                            color: #fff;
+                        }
+                        .content p {
+                            margin-bottom: 20px;
+                        }
+                        .button-container {
+                            text-align: center;
+                            margin-top: 30px;
+                        }
+                        .team {
+                            color: #34499A;
+                        }
+                        .share {
+                            color: #D77D31;
+                        }
+                        .sub {
+                            color: #fff;
+                            font-size: 2rem;
+                        }
+                        .btn {
+                            background-color: none;
+                            color: #fff;
+                            padding: 12px 30px;
+                            text-decoration: none;
+                            font-weight: bold;
+                            font-size: 1.2rem;
+                            border-radius: 5px;
+                            text-transform: uppercase;
+                            transition: background-color 0.3s ease;
+                        }
+                        .btn:hover {
+                            background-color: #fff;
+                            color: #000;
+                        }
+                        .footer {
+                            text-align: center;
+                            font-size: 14px;
+                            color: #888;
+                            margin-top: 40px;
+                        }
+                        .footer p {
+                            margin: 10px 0;
+                        }
+
+                        /* Mobile responsiveness */
+                        @media screen and (max-width: 600px) {
+                            .container {
+                                padding: 20px;
+                                max-width: 100%;
+                            }
+                            .header img {
+                                width: 120px;
+                                margin-bottom: 30px;
+                            }
+                            .header h1 {
+                                font-size: 24px;
+                            }
+                            .content {
+                                font-size: 14px;
+                            }
+                            .btn {
+                                font-size: 1rem;
+                                padding: 10px 25px;
+                            }
+                            .footer {
+                                font-size: 12px;
+                            }
+                            .sub {
+                                font-size: 1.5rem;
+                            }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="header">
+                            <!-- Add your logo here -->
+                            <img src="https://teamsharenetwork.netlify.app/logo.png" alt="Team Logo" />
+                            <h1>You're Invited to Join "${teamName}"</h1>
+                        </div>
+                        <div class="content">
+                            <p>Hello <strong>${recipientName}</strong>,</p>
+                            <p><strong>${inviterName}</strong> has invited you to join the team <strong>"${teamName}"</strong>.</p>
+                            <p>We're excited to have you on board! Click the button below to accept the invitation and become part of our awesome team.</p>
+                            <p>If you have any questions or need assistance, feel free to reach out to us anytime. We’re here to help!</p>
+                        </div>
+                        <div class="button-container">
+                            <a href="http://teamsharenetwork.netlify.app/home" class="btn">Accept Invitation</a>
+                        </div>
+                        <div class="footer">
+                            <p>Best regards,</p>
+                            <p class="sub"><strong><span class="team">Team</span><span class="share">Share</span> Network</strong></p>
+                            <p><em>We're excited to have you with us!</em></p>
+                        </div>
+                    </div>
+                </body>
+            </html>
+        `,
     };
 
     return transporter.sendMail(mailOptions);
 };
+
 
 // Create a new team
 router.post('/', authMiddleware, async (req, res) => {
@@ -137,10 +274,15 @@ router.post('/:id/members', authMiddleware, async (req, res) => {
         if (existingInvite) {
             return res.status(400).json({ msg: 'This email has already been invited.' });
         }
+        const recipientUser = await User.findOne({ email });
+        if (!recipientUser) {
+            return res.status(404).json({ msg: 'User with the given email not found' });
+        }
+        
+         const inviterName = `${req.user.firstName} ${req.user.lastName}` || "Team Owner";
+         const recipientName = `${recipientUser.firstName} ${recipientUser.lastName}`;
 
-        const inviterName = req.user.name || "Team Owner";
-
-        await sendInvitationEmail(email, team.name, inviterName);
+        await sendInvitationEmail(email, team.name, inviterName, recipientName);
 
         if (email.trim()) {
             team.pendingInvites.push({ email: email.trim() });
@@ -148,10 +290,7 @@ router.post('/:id/members', authMiddleware, async (req, res) => {
 
         await team.save();
 
-        const recipientUser = await User.findOne({ email });
-        if (!recipientUser) {
-            return res.status(404).json({ msg: 'User with the given email not found' });
-        }
+
 
         const notification = new Notification({
             message: `${inviterName} has invited you to join the team "${team.name}".`,
