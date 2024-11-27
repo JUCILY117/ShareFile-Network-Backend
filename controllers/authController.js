@@ -53,28 +53,154 @@ const register = async (req, res) => {
       userType: userType || 'user',
       uniqueId: uuidv4()
     });
+     const fullName = ` ${user.firstName} ${user.lastName}`;
 
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(password, salt);
 
     await user.save();
-    sendVerificationEmail(user, res);
+    sendVerificationEmail(user, res, fullName);
   } catch (err) {
     console.error('Server error:', err);
     res.status(500).send('Server error');
   }
 };
 
-const sendVerificationEmail = ({ _id, email }, res) => {
+const sendVerificationEmail = ({ _id, email, fullName }, res) => {
   const currentUrl = `${apiBaseUrl}`;
   const uniqueString = uuidv4() + _id;
+ 
 
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to: email,
-    subject: "Verify Your Email.",
-    html: `<p>Verify your email address to complete the signup and log into your account.</p><p>This link <b>expires in 6 hours.</b></p><p>Press <a href=${currentUrl + "/api/auth/verify/" + _id + "/" + uniqueString}>here</a> to proceed.</p>`
-  };
+    subject: `Dear User! Please verify your email before the link expires.`,
+    html: `    <html>
+                  <head>
+                      <style>
+                          @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900&display=swap');
+                          body {
+                              font-family: 'Poppins', sans-serif;
+                              background-color: #000;
+                              color: #fff;
+                              margin: 0;
+                              padding: 0;
+                          }
+                          .container {
+                              background-color: #1F1F1F;
+                              border-radius: 8px;
+                              padding: 40px;
+                              max-width: 700px;
+                              margin: 30px auto;
+                              box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+                          }
+                          .header {
+                              text-align: center;
+                              margin-bottom: 30px;
+                          }
+                          .header img {
+                              width: 150px;
+                              margin-bottom: 50px;
+                          }
+                          .header h1 {
+                              font-size: 28px;
+                              color: #fff;
+                              margin: 0;
+                          }
+                          .content {
+                              font-size: 16px;
+                              line-height: 1.6;
+                              color: #D1D1D6;
+                          }
+                          .content strong {
+                              color: #fff;
+                          }
+                          .content p {
+                              margin-bottom: 20px;
+                          }
+                          .content p strong {
+                              color: rgb(141, 40, 40);
+                          }
+                          .button-container {
+                              text-align: center;
+                              margin-top: 30px;
+                          }
+                          .btn {
+                              background-color: none;
+                              color: #fff;
+                              padding: 12px 30px;
+                              text-decoration: none;
+                              font-weight: bold;
+                              font-size: 1.2rem;
+                              border-radius: 5px;
+                              text-transform: uppercase;
+                              transition: background-color 0.3s ease;
+                          }
+                          .btn:hover {
+                              background-color: #fff;
+                              color: #000;
+                          }
+                          .footer {
+                              text-align: center;
+                              font-size: 14px;
+                              color: #888;
+                              margin-top: 40px;
+                          }
+                          .footer p {
+                              margin: 10px 0;
+                          }
+
+                          /* Mobile responsiveness */
+                          @media screen and (max-width: 600px) {
+                              .container {
+                                  padding: 20px;
+                                  max-width: 100%;
+                              }
+                              .header img {
+                                  width: 120px;
+                                  margin-bottom: 30px;
+                              }
+                              .header h1 {
+                                  font-size: 24px;
+                              }
+                              .content {
+                                  font-size: 14px;
+                              }
+                              .btn {
+                                  font-size: 1rem;
+                                  padding: 10px 25px;
+                              }
+                              .footer {
+                                  font-size: 12px;
+                              }
+                          }
+                      </style>
+                  </head>
+                  <body>
+                      <div class="container">
+                          <div class="header">
+                              <!-- Add your logo here -->
+                              <img src="https://teamsharenetwork.netlify.app/logo.png" alt="Team Logo" />
+                              <h1>Verify Your Email Address</h1>
+                          </div>
+                          <div class="content">
+                              <p>Hello,</p>
+                              <p>Thank you for signing up! To complete your signup process, please verify your email address.</p>
+                              <p>This link <strong>expires in 6 hours</strong>.</p>
+                              <p>Click the button below to verify your email:</p>
+                          </div>
+                          <div class="button-container">
+                              <a href="${currentUrl}/api/auth/verify/${_id}/${uniqueString}" class="btn">Verify Email</a>
+                          </div>
+                          <div class="footer">
+                              <p>Best regards,</p>
+                              <p class="sub"><strong><span class="team">Team</span><span class="share">Share</span> Network</strong></p>
+                              <p><em>We're excited to have you with us!</em></p>
+                          </div>
+                      </div>
+                  </body>
+              </html>`
+    };
 
   const saltRounds = 10;
   bcrypt
@@ -150,9 +276,131 @@ const verifyEmail = async (req, res) => {
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: user.email,
-      subject: "Email Successfully Verified",
-      html: `<p>Your email address has been successfully verified. You can now log in to your account.</p>`
-    };
+      subject: "Dear User, your email has been sucessfully verified!",
+      html: `
+      <html>
+          <head>
+              <style>
+                  @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900&display=swap');
+                  body {
+                      font-family: 'Poppins', sans-serif;
+                      background-color: #000;
+                      color: #fff;
+                      margin: 0;
+                      padding: 0;
+                  }
+                  .container {
+                      background-color: #1F1F1F;
+                      border-radius: 8px;
+                      padding: 40px;
+                      max-width: 700px;
+                      margin: 30px auto;
+                      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+                  }
+                  .header {
+                      text-align: center;
+                      margin-bottom: 30px;
+                  }
+                  .header img {
+                      width: 150px;
+                      margin-bottom: 20px;
+                  }
+                  .header h1 {
+                      font-size: 28px;
+                      color: #fff;
+                      margin: 0;
+                  }
+                  .content {
+                      font-size: 16px;
+                      line-height: 1.6;
+                      color: #D1D1D6;
+                  }
+                  .content strong {
+                      color: #fff;
+                  }
+                  .content p {
+                      margin-bottom: 20px;
+                  }
+                  .button-container {
+                      text-align: center;
+                      margin-top: 30px;
+                  }
+                  .btn {
+                      background-color: none;
+                      color: #fff;
+                      padding: 12px 30px;
+                      text-decoration: none;
+                      font-weight: bold;
+                      font-size: 1.2rem;
+                      border-radius: 5px;
+                      text-transform: uppercase;
+                      transition: background-color 0.3s ease;
+                  }
+                  .btn:hover {
+                      background-color: #fff;
+                      color: #000;
+                  }
+                  .footer {
+                      text-align: center;
+                      font-size: 14px;
+                      color: #888;
+                      margin-top: 40px;
+                  }
+                  .footer p {
+                      margin: 10px 0;
+                  }
+  
+                  /* Mobile responsiveness */
+                  @media screen and (max-width: 600px) {
+                      .container {
+                          padding: 20px;
+                          max-width: 100%;
+                      }
+                      .header img {
+                          width: 120px;
+                          margin-bottom: 20px;
+                      }
+                      .header h1 {
+                          font-size: 24px;
+                      }
+                      .content {
+                          font-size: 14px;
+                      }
+                      .btn {
+                          font-size: 1rem;
+                          padding: 10px 25px;
+                      }
+                      .footer {
+                          font-size: 12px;
+                      }
+                  }
+              </style>
+          </head>
+          <body>
+              <div class="container">
+                  <div class="header">
+                      <img src="https://teamsharenetwork.netlify.app/logo.png" alt="Team Logo" />
+                      <h1>Email Verified Successfully!</h1>
+                  </div>
+                  <div class="content">
+                      <p>Hello,</p>
+                      <p>Congratulations! Your email address has been successfully verified.</p>
+                      <p>You can now log in to your account and enjoy all the features of our platform.</p>
+                      <p>Thank you for being a part of the <strong>TeamShare Network</strong>.</p>
+                  </div>
+                  <div class="button-container">
+                      <a href="http://teamsharenetwork.netlify.app/login" class="btn">Log In Now</a>
+                  </div>
+                  <div class="footer">
+                      <p>Best regards,</p>
+                      <p class="sub"><strong><span class="team">Team</span><span class="share">Share</span> Network</strong></p>
+                      <p><em>Your journey starts here!</em></p>
+                  </div>
+              </div>
+          </body>
+      </html>
+      `
+  };  
 
     transporter.sendMail(mailOptions, (error, info) => {
       if (error) {
@@ -197,9 +445,130 @@ const forgotPassword = async (req, res) => {
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: email,
-      subject: "Password Reset Request",
-      html: `<p>You have requested a password reset. Please click this <a href="${resetUrl}">link</a> below to reset your password.</p><p><b>This link</b> expires in 1 hour.</p>`
-    };
+      subject: "Here is your Password Reset Request",
+      html: `
+      <html>
+          <head>
+              <style>
+                  @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900&display=swap');
+                  body {
+                      font-family: 'Poppins', sans-serif;
+                      background-color: #000;
+                      color: #fff;
+                      margin: 0;
+                      padding: 0;
+                  }
+                  .container {
+                      background-color: #1F1F1F;
+                      border-radius: 8px;
+                      padding: 40px;
+                      max-width: 700px;
+                      margin: 30px auto;
+                      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+                  }
+                  .header {
+                      text-align: center;
+                      margin-bottom: 30px;
+                  }
+                  .header img {
+                      width: 150px;
+                      margin-bottom: 20px;
+                  }
+                  .header h1 {
+                      font-size: 28px;
+                      color: #fff;
+                      margin: 0;
+                  }
+                  .content {
+                      font-size: 16px;
+                      line-height: 1.6;
+                      color: #D1D1D6;
+                  }
+                  .content strong {
+                      color: #fff;
+                  }
+                  .content p {
+                      margin-bottom: 20px;
+                  }
+                  .button-container {
+                      text-align: center;
+                      margin-top: 30px;
+                  }
+                  .btn {
+                      background-color: none;
+                      color: #fff;
+                      padding: 12px 30px;
+                      text-decoration: none;
+                      font-weight: bold;
+                      font-size: 1.2rem;
+                      border-radius: 5px;
+                      text-transform: uppercase;
+                      transition: background-color 0.3s ease;
+                  }
+                  .btn:hover {
+                      background-color: #fff;
+                      color: #000;
+                  }
+                  .footer {
+                      text-align: center;
+                      font-size: 14px;
+                      color: #888;
+                      margin-top: 40px;
+                  }
+                  .footer p {
+                      margin: 10px 0;
+                  }
+  
+                  /* Mobile responsiveness */
+                  @media screen and (max-width: 600px) {
+                      .container {
+                          padding: 20px;
+                          max-width: 100%;
+                      }
+                      .header img {
+                          width: 120px;
+                          margin-bottom: 20px;
+                      }
+                      .header h1 {
+                          font-size: 24px;
+                      }
+                      .content {
+                          font-size: 14px;
+                      }
+                      .btn {
+                          font-size: 1rem;
+                          padding: 10px 25px;
+                      }
+                      .footer {
+                          font-size: 12px;
+                      }
+                  }
+              </style>
+          </head>
+          <body>
+              <div class="container">
+                  <div class="header">
+                      <img src="https://teamsharenetwork.netlify.app/logo.png" alt="Team Logo" />
+                      <h1>Password Reset Request</h1>
+                  </div>
+                  <div class="content">
+                      <p>Hello,</p>
+                      <p>We received a request to reset your password. If you made this request, please click the button below to proceed. If you did not request a password reset, you can safely ignore this email.</p>
+                      <p style="color:rgb(194, 22, 22)"><b>This link expires in 1 hour.</b></p>
+                  </div>
+                  <div class="button-container">
+                      <a href="${resetUrl}" class="btn">Reset Password</a>
+                  </div>
+                  <div class="footer">
+                      <p>Best regards,</p>
+                      <p class="sub"><strong><span class="team">Team</span><span class="share">Share</span> Network</strong></p>
+                      <p><em>Your security is our priority.</em></p>
+                  </div>
+              </div>
+          </body>
+      </html>
+      `
+  };  
 
     transporter.sendMail(mailOptions, (err, info) => {
       if (err) {
@@ -247,9 +616,130 @@ const resetPassword = async (req, res) => {
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: user.email,
-      subject: "Password Reset Successfully",
-      html: `<p>Your password has been reset successfully. You can now log in with your new password.</p>`
-    };
+      subject: "Dear User! Your Password has been Reset Successfully",
+      html: `
+      <html>
+          <head>
+              <style>
+                  @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900&display=swap');
+                  body {
+                      font-family: 'Poppins', sans-serif;
+                      background-color: #000;
+                      color: #fff;
+                      margin: 0;
+                      padding: 0;
+                  }
+                  .container {
+                      background-color: #1F1F1F;
+                      border-radius: 8px;
+                      padding: 40px;
+                      max-width: 700px;
+                      margin: 30px auto;
+                      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+                  }
+                  .header {
+                      text-align: center;
+                      margin-bottom: 30px;
+                  }
+                  .header img {
+                      width: 150px;
+                      margin-bottom: 20px;
+                  }
+                  .header h1 {
+                      font-size: 28px;
+                      color: #fff;
+                      margin: 0;
+                  }
+                  .content {
+                      font-size: 16px;
+                      line-height: 1.6;
+                      color: #D1D1D6;
+                  }
+                  .content strong {
+                      color: #fff;
+                  }
+                  .content p {
+                      margin-bottom: 20px;
+                  }
+                  .button-container {
+                      text-align: center;
+                      margin-top: 30px;
+                  }
+                  .btn {
+                      background-color: none;
+                      color: #fff;
+                      padding: 12px 30px;
+                      text-decoration: none;
+                      font-weight: bold;
+                      font-size: 1.2rem;
+                      border-radius: 5px;
+                      text-transform: uppercase;
+                      transition: background-color 0.3s ease;
+                  }
+                  .btn:hover {
+                      background-color: #fff;
+                      color: #000;
+                  }
+                  .footer {
+                      text-align: center;
+                      font-size: 14px;
+                      color: #888;
+                      margin-top: 40px;
+                  }
+                  .footer p {
+                      margin: 10px 0;
+                  }
+  
+                  /* Mobile responsiveness */
+                  @media screen and (max-width: 600px) {
+                      .container {
+                          padding: 20px;
+                          max-width: 100%;
+                      }
+                      .header img {
+                          width: 120px;
+                          margin-bottom: 20px;
+                      }
+                      .header h1 {
+                          font-size: 24px;
+                      }
+                      .content {
+                          font-size: 14px;
+                      }
+                      .btn {
+                          font-size: 1rem;
+                          padding: 10px 25px;
+                      }
+                      .footer {
+                          font-size: 12px;
+                      }
+                  }
+              </style>
+          </head>
+          <body>
+              <div class="container">
+                  <div class="header">
+                      <img src="https://teamsharenetwork.netlify.app/logo.png" alt="Team Logo" />
+                      <h1>Password Reset Successful</h1>
+                  </div>
+                  <div class="content">
+                      <p>Hello,</p>
+                      <p>Your password has been successfully reset. You can now log in to your account using your new password.</p>
+                      <p>If you didn’t make this change or you notice any suspicious activity in your account, please contact us immediately.</p>
+                  </div>
+                  <div class="button-container">
+                      <a href="http://teamsharenetwork.netlify.app/login" class="btn">Log In Now</a>
+                  </div>
+                  <div class="footer">
+                      <p>Best regards,</p>
+                      <p class="sub"><strong><span class="team">Team</span><span class="share">Share</span> Network</strong></p>
+                      <p><em>Your security is our priority.</em></p>
+                  </div>
+              </div>
+          </body>
+      </html>
+      `
+  };  
 
     transporter.sendMail(mailOptions, (error, info) => {
       if (error) {
@@ -424,8 +914,130 @@ const promoteToAdmin = async (req, res) => {
       from: process.env.EMAIL_USER,
       to: user.email,
       subject: "Congratulations, You are now an Admin!",
-      html: `<p>You have been promoted to an admin. Welcome to the team!</p>`
-    };
+      html: `
+      <html>
+          <head>
+              <style>
+                  @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900&display=swap');
+                  body {
+                      font-family: 'Poppins', sans-serif;
+                      background-color: #000;
+                      color: #fff;
+                      margin: 0;
+                      padding: 0;
+                  }
+                  .container {
+                      background-color: #1F1F1F;
+                      border-radius: 8px;
+                      padding: 40px;
+                      max-width: 700px;
+                      margin: 30px auto;
+                      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+                  }
+                  .header {
+                      text-align: center;
+                      margin-bottom: 30px;
+                  }
+                  .header img {
+                      width: 150px;
+                      margin-bottom: 20px;
+                  }
+                  .header h1 {
+                      font-size: 28px;
+                      color: #fff;
+                      margin: 0;
+                  }
+                  .content {
+                      font-size: 16px;
+                      line-height: 1.6;
+                      color: #D1D1D6;
+                  }
+                  .content strong {
+                      color: #fff;
+                  }
+                  .content p {
+                      margin-bottom: 20px;
+                  }
+                  .button-container {
+                      text-align: center;
+                      margin-top: 30px;
+                  }
+                  .btn {
+                      background-color: none;
+                      color: #fff;
+                      padding: 12px 30px;
+                      text-decoration: none;
+                      font-weight: bold;
+                      font-size: 1.2rem;
+                      border-radius: 5px;
+                      text-transform: uppercase;
+                      transition: background-color 0.3s ease;
+                  }
+                  .btn:hover {
+                      background-color: #fff;
+                      color: #000;
+                  }
+                  .footer {
+                      text-align: center;
+                      font-size: 14px;
+                      color: #888;
+                      margin-top: 40px;
+                  }
+                  .footer p {
+                      margin: 10px 0;
+                  }
+  
+                  /* Mobile responsiveness */
+                  @media screen and (max-width: 600px) {
+                      .container {
+                          padding: 20px;
+                          max-width: 100%;
+                      }
+                      .header img {
+                          width: 120px;
+                          margin-bottom: 20px;
+                      }
+                      .header h1 {
+                          font-size: 24px;
+                      }
+                      .content {
+                          font-size: 14px;
+                      }
+                      .btn {
+                          font-size: 1rem;
+                          padding: 10px 25px;
+                      }
+                      .footer {
+                          font-size: 12px;
+                      }
+                  }
+              </style>
+          </head>
+          <body>
+              <div class="container">
+                  <div class="header">
+                      <img src="https://teamsharenetwork.netlify.app/logo.png" alt="ShareFile Network Logo" />
+                      <h1>Congratulations, Admin!</h1>
+                  </div>
+                  <div class="content">
+                      <p>Hello,</p>
+                      <p>We are excited to inform you that you have been promoted to <strong>Admin</strong> in <strong>ShareFile Network</strong>.</p>
+                      <p>As an Admin, you can now manage teams, handle permissions, and ensure smooth operations within the platform.</p>
+                      <p>Thank you for your dedication and efforts. We are confident you will excel in your new role!</p>
+                  </div>
+                  <div class="button-container">
+                      <a href="http://sharefilenetwork.netlify.app/admin" class="btn">Go to Admin Dashboard</a>
+                  </div>
+                  <div class="footer">
+                      <p>Best regards,</p>
+                      <p class="sub"><strong><span class="team">Share</span><span class="file">File</span> Network</strong></p>
+                      <p><em>Empowering Collaboration.</em></p>
+                  </div>
+              </div>
+          </body>
+      </html>
+      `
+  };  
 
     transporter.sendMail(mailOptions, (error, info) => {
       if (error) {

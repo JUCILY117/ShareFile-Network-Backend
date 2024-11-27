@@ -21,7 +21,7 @@ const sendInvitationEmail = (to, teamName, inviterName, recipientName) => {
     const mailOptions = {
         from: process.env.EMAIL_USER,
         to,
-        subject: `You've been invited to join the team: ${teamName}`,
+        subject: `Hello ${recipientName}! You've been invited to join the team: ${teamName}`,
         html: `
             <html>
                 <head>
@@ -182,6 +182,8 @@ router.post('/', authMiddleware, async (req, res) => {
             pendingInvites: [],
         });
 
+        newTeam.pendingInvites = newTeam.pendingInvites.filter(invite => invite.email != null && invite.email.trim() !== '');
+
         const savedTeam = await newTeam.save();
         res.status(201).json(savedTeam);
     } catch (error) {
@@ -259,6 +261,7 @@ router.post('/:id/members', authMiddleware, async (req, res) => {
     if (!email || !email.trim()) {
         return res.status(400).json({ msg: 'Email is required and cannot be empty.' });
     }
+
     const validEmailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
     if (!validEmailRegex.test(email)) {
         return res.status(400).json({ msg: 'Invalid email address.' });
@@ -269,29 +272,26 @@ router.post('/:id/members', authMiddleware, async (req, res) => {
         if (!team) {
             return res.status(404).json({ msg: 'Team not found' });
         }
-
         const existingInvite = team.pendingInvites.find(invite => invite.email === email);
         if (existingInvite) {
             return res.status(400).json({ msg: 'This email has already been invited.' });
         }
+
         const recipientUser = await User.findOne({ email });
         if (!recipientUser) {
             return res.status(404).json({ msg: 'User with the given email not found' });
         }
         
-         const inviterName = `${req.user.firstName} ${req.user.lastName}` || "Team Owner";
-         const recipientName = `${recipientUser.firstName} ${recipientUser.lastName}`;
+        const inviterName = `${req.user.firstName} ${req.user.lastName}` || "Team Owner";
+        const recipientName = `${recipientUser.firstName} ${recipientUser.lastName}`;
 
         await sendInvitationEmail(email, team.name, inviterName, recipientName);
 
-        if (email.trim()) {
-            team.pendingInvites.push({ email: email.trim() });
-        }
+        team.pendingInvites.push({ email: email.trim() });
 
         await team.save();
 
-
-
+        // Create notification
         const notification = new Notification({
             message: `${inviterName} has invited you to join the team "${team.name}".`,
             recipient: recipientUser._id,
