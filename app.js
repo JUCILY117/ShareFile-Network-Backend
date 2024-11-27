@@ -22,7 +22,7 @@ const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
     origin: '*',
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   },
 });
 
@@ -36,7 +36,8 @@ const allowedOrigins = [
   'https://sharefilenetwork.netlify.app',
   'https://teamsharenetwork.netlify.app',
   'https://sharefilenetwork.onrender.com',
-  'http://localhost:5174'
+  'http://localhost:5174',
+  'http://localhost:5000',
 ];
 
 app.use(cors({
