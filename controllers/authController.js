@@ -16,7 +16,7 @@ const router = express.Router();
 
 // nodemailer transporter
 let transporter = nodemailer.createTransport({
-  host: 'sandbox.smtp.mailtrap.io',
+  host: process.env.EMAIL_SERVER,
   port: 587, 
   secure: false,
   auth: {
