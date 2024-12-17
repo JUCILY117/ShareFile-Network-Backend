@@ -19,7 +19,7 @@ const transporter = nodemailer.createTransport({
 
 const sendInvitationEmail = (to, teamName, inviterName, recipientName) => {
     const mailOptions = {
-        from: process.env.EMAIL_USER,
+        from: '"ShareFile Team" <sharefilenetwork@protonmail.com>',
         to,
         subject: `Hello ${recipientName}! You've been invited to join the team: ${teamName}`,
         html: `

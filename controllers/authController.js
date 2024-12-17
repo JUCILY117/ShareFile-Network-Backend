@@ -72,7 +72,7 @@ const sendVerificationEmail = ({ _id, email, fullName }, res) => {
  
 
   const mailOptions = {
-    from: process.env.EMAIL_USER,
+    from: '"ShareFile Team" <sharefilenetwork@protonmail.com>',
     to: email,
     subject: `Dear User! Please verify your email before the link expires.`,
     html: `    <html>
@@ -274,7 +274,7 @@ const verifyEmail = async (req, res) => {
     const user = await User.findById(userId);
 
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: '"ShareFile Team" <sharefilenetwork@protonmail.com>',
       to: user.email,
       subject: "Dear User, your email has been sucessfully verified!",
       html: `
@@ -443,7 +443,7 @@ const forgotPassword = async (req, res) => {
     const resetUrl = `${apiBaseUrl}/api/auth/reset-password/${resetToken}`;
 
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: '"ShareFile Team" <sharefilenetwork@protonmail.com>',
       to: email,
       subject: "Here is your Password Reset Request",
       html: `
@@ -614,7 +614,7 @@ const resetPassword = async (req, res) => {
     await PasswordReset.deleteOne({ _id: passwordResetRecord._id });
 
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: '"ShareFile Team" <sharefilenetwork@protonmail.com>',
       to: user.email,
       subject: "Dear User! Your Password has been Reset Successfully",
       html: `
@@ -911,7 +911,7 @@ const promoteToAdmin = async (req, res) => {
     await user.save();
 
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: '"ShareFile Team" <sharefilenetwork@protonmail.com>',
       to: user.email,
       subject: "Congratulations, You are now an Admin!",
       html: `
