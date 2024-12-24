@@ -20,4 +20,6 @@ const UserVerificationSchema = new mongoose.Schema({
   },
 });
 
+PasswordResetSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
 module.exports = mongoose.model('UserVerification', UserVerificationSchema);
